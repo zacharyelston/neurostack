@@ -1,0 +1,217 @@
+product:
+  name: cortical-compose
+  version: 0.1.0
+  type: ai-cognitive-architecture
+  description: >
+    A containerized cognitive system modeled after seven major brain regions.
+    Each region is implemented as an independent service with vector and SQL
+    persistence. All access is mediated by a Prefrontal Cortex orchestrator.
+
+goals:
+  - Model cognitive decision-making using modular, brain-inspired services
+  - Separate experiential memory by emotional valence (good vs bad)
+  - Distinguish input experiences from output experiences
+  - Enable adaptive decision policies based on historical patterns
+  - Support reproducible local deployment via docker-compose
+
+non_goals:
+  - Biological accuracy beyond high-level functional analogy
+  - Real-time guarantees or hard latency constraints
+  - Autonomous self-modification of architecture
+  - Claims of sentience, consciousness, or feelings
+
+architecture:
+  topology: hub-and-spoke
+  central_controller: prefrontal_cortex
+  access_policy: >
+    All region services are write- and read-accessible only via the
+    Prefrontal Cortex service. Direct inter-region communication is forbidden.
+
+regions:
+  prefrontal_cortex:
+    role:
+      - decision_orchestration
+      - policy_management
+      - cross_region_pattern_analysis
+      - confidence_estimation
+      - review_and_followup_control
+    responsibilities:
+      - Route normalized inputs to appropriate regions
+      - Aggregate similarity search results across regions
+      - Weight decisions using emotional valence and reward history
+      - Decide whether to act, defer, or request more data
+    persistence: none
+    interfaces:
+      - POST /decide
+      - POST /feedback
+      - GET /health
+
+  thalamus:
+    role:
+      - input_gateway
+      - normalization
+      - embedding_generation
+    responsibilities:
+      - Accept raw input
+      - Normalize structure and metadata
+      - Generate embeddings using a single shared model version
+      - Emit feature packets to the Prefrontal Cortex
+    persistence: none
+    interfaces:
+      - POST /ingest
+      - GET /health
+
+  hippocampus:
+    role:
+      - episodic_memory
+      - temporal_context
+    responsibilities:
+      - Store ordered sequences of experiences
+      - Support time-aware similarity queries
+      - Link related experiences into sessions
+    persistence:
+      vector_store: qdrant
+      relational_store: postgres
+    interfaces:
+      - POST /store
+      - POST /query
+      - GET /health
+
+  basal_ganglia:
+    role:
+      - reinforcement_learning
+      - action_scoring
+    responsibilities:
+      - Track action-to-outcome associations
+      - Maintain reward statistics
+      - Provide action preference scores
+    persistence:
+      vector_store: qdrant
+      relational_store: postgres
+    interfaces:
+      - POST /store
+      - POST /query
+      - GET /health
+
+  cerebellum:
+    role:
+      - error_correction
+      - skill_refinement
+      - fast_heuristics
+    responsibilities:
+      - Store error deltas between expected and actual outcomes
+      - Maintain latency-optimized micro-policies
+      - Suggest calibrated adjustments
+    persistence:
+      vector_store: qdrant
+      relational_store: postgres
+    interfaces:
+      - POST /store
+      - POST /query
+      - GET /health
+
+  amygdala:
+    role:
+      - emotional_valence
+      - risk_weighting
+    stores:
+      positive_input:
+        description: positively valenced input experiences
+      negative_input:
+        description: negatively valenced input experiences
+      positive_output:
+        description: positively valenced output experiences
+      negative_output:
+        description: negatively valenced output experiences
+    responsibilities:
+      - Classify experiences as positive or negative
+      - Influence decision caution and confidence
+      - Surface emotionally similar past experiences
+    persistence:
+      vector_store: qdrant
+      relational_store: postgres
+    interfaces:
+      - POST /store
+      - POST /query
+      - GET /health
+
+data_model:
+  experience:
+    required_fields:
+      - experience_id
+      - timestamp
+      - source
+      - text
+      - embedding
+    fields:
+      experience_id: uuid
+      timestamp: iso8601
+      source: [input, output, feedback, system]
+      actor: string
+      text: string
+      embedding: vector
+      context:
+        session_id: uuid
+        intent: string
+        metadata: object
+      valence:
+        score: float
+        confidence: float
+        labels: list
+      outcome:
+        success: boolean
+        reward: float
+        error: string
+
+decision_flow:
+  steps:
+    - Thalamus ingests raw input and generates embeddings
+    - Prefrontal Cortex evaluates risk, similarity, and confidence
+    - Relevant regions are queried for contextual memory
+    - Prefrontal Cortex synthesizes a decision or requests more data
+    - Output is generated
+    - Outcome feedback is written back to all relevant regions
+
+storage_strategy:
+  vector_store_usage:
+    - semantic similarity
+    - clustering
+    - pattern discovery
+  relational_store_usage:
+    - metadata
+    - timestamps
+    - rewards
+    - auditability
+  retention_policy:
+    - Negative experiences persist longer than positive
+    - Low-signal duplicates may be compacted
+
+constraints:
+  - All embeddings must be generated by the Thalamus
+  - All region APIs must conform to a shared contract
+  - Region services must be independently deployable
+  - System must function under partial region failure
+
+observability:
+  tracing:
+    - experience_id propagated across all services
+  metrics:
+    - query_latency_per_region
+    - similarity_hit_rates
+    - decision_confidence_distribution
+
+security:
+  - Network-level isolation between regions
+  - Prefrontal Cortex as sole authorized caller
+  - Explicit schema validation on all inputs
+
+deployment:
+  method: docker-compose
+  local_first: true
+  cloud_optional: true
+
+success_criteria:
+  - Deterministic replay of experience sequences
+  - Observable decision changes based on stored experiences
+  - Clear differentiation between good and bad outcomes
+  - Ability to request additional data when confidence is low
