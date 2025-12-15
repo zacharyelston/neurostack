@@ -1,0 +1,441 @@
+# MCP-Style Transport Layer for Neurostack
+#
+# Enables brain-to-brain communication via stdin/stdout using JSON-RPC 2.0,
+# following the Model Context Protocol (MCP) patterns.
+
+prd:
+  name: neurostack-mcp-transport
+  version: 1.0.0
+  scope: stdio_based_brain_communication
+  summary: >
+    Adds an MCP-compatible transport layer allowing brains to communicate
+    via stdin/stdout subprocess spawning, in addition to HTTP. This enables
+    lightweight local deployments and tool-like integration patterns.
+
+motivation:
+  why_mcp_style:
+    - "Subprocess spawning is simpler than HTTP for local deployments"
+    - "No port management or network configuration needed"
+    - "Natural fit for CLI tools and IDE integrations"
+    - "MCP is becoming a standard for AI tool communication"
+    - "Enables brains to be used as MCP servers by external systems"
+    
+  deployment_modes:
+    http:
+      description: "Current mode - microservices with REST APIs"
+      use_case: "Distributed deployment, multiple machines, scaling"
+      
+    stdio:
+      description: "New mode - subprocess with JSON-RPC over stdin/stdout"
+      use_case: "Local deployment, CLI tools, IDE plugins, MCP clients"
+      
+    hybrid:
+      description: "Mix of both - PFC as HTTP, regions as subprocesses"
+      use_case: "Single-machine deployment with external API"
+
+# =============================================================================
+# JSON-RPC 2.0 PROTOCOL
+# =============================================================================
+
+jsonrpc:
+  version: "2.0"
+  
+  request_format:
+    required_fields:
+      jsonrpc: "2.0"
+      method: "string - method name"
+      id: "string | number - request identifier"
+    optional_fields:
+      params: "object | array - method parameters"
+      
+  response_format:
+    required_fields:
+      jsonrpc: "2.0"
+      id: "string | number - matching request id"
+    one_of:
+      result: "any - success response"
+      error: "object - error response"
+      
+  error_format:
+    code: "integer - error code"
+    message: "string - error message"
+    data: "any - additional error data (optional)"
+    
+  standard_error_codes:
+    -32700: "Parse error - invalid JSON"
+    -32600: "Invalid request - not valid JSON-RPC"
+    -32601: "Method not found"
+    -32602: "Invalid params"
+    -32603: "Internal error"
+    
+  custom_error_codes:
+    -32000: "Brain not ready"
+    -32001: "Capability not supported"
+    -32002: "Trust level insufficient"
+    -32003: "Rate limit exceeded"
+    -32004: "Encryption required"
+
+# =============================================================================
+# MESSAGE FRAMING
+# =============================================================================
+
+framing:
+  description: >
+    Each JSON-RPC message is a single line terminated by newline.
+    This matches MCP's stdio transport specification.
+    
+  format: "JSON object followed by \\n"
+  encoding: "UTF-8"
+  
+  example_request: |
+    {"jsonrpc":"2.0","method":"query","params":{"embedding":[0.1,0.2,...]},"id":1}
+    
+  example_response: |
+    {"jsonrpc":"2.0","result":{"matches":[...]},"id":1}
+    
+  notifications:
+    description: "Requests without id field - no response expected"
+    example: |
+      {"jsonrpc":"2.0","method":"log","params":{"level":"info","message":"Processing..."}}
+
+# =============================================================================
+# BRAIN METHODS (MCP-STYLE)
+# =============================================================================
+
+methods:
+  # Lifecycle
+  initialize:
+    description: "Initialize brain connection, exchange capabilities"
+    params:
+      protocol_version: "string - client protocol version"
+      client_info:
+        name: "string - client name"
+        version: "string - client version"
+    result:
+      protocol_version: "string - server protocol version"
+      brain_info:
+        brain_id: "string"
+        name: "string"
+        capabilities: "object - domain -> level"
+      server_capabilities:
+        tools: "boolean - supports tool calls"
+        resources: "boolean - supports resource access"
+        prompts: "boolean - supports prompt templates"
+        
+  shutdown:
+    description: "Graceful shutdown request"
+    params: null
+    result: null
+    
+  # Core brain operations
+  query:
+    description: "Query brain memory/knowledge"
+    params:
+      embedding: "array<float> - 384-dim vector"
+      limit: "integer - max results (default 10)"
+      filters: "object - optional filters"
+    result:
+      matches:
+        - id: "string"
+          score: "float"
+          payload: "object"
+          
+  store:
+    description: "Store experience in brain memory"
+    params:
+      experience_id: "string - UUID"
+      embedding: "array<float>"
+      payload: "object - region-specific data"
+    result:
+      success: "boolean"
+      id: "string"
+      
+  decide:
+    description: "Request decision from orchestrator (PFC only)"
+    params:
+      input: "string - raw input text"
+      context: "string - optional context"
+      source: "string - input | output"
+    result:
+      experience_id: "string"
+      action: "string - act | defer | request_more_data"
+      confidence: "float"
+      reasoning: "string"
+      similar_experiences: "array"
+      
+  # Inter-brain (encrypted)
+  interop/message:
+    description: "Send encrypted inter-brain message"
+    params:
+      envelope:
+        from_brain: "string"
+        to_brain: "string"
+        nonce: "string - base64"
+        ciphertext: "string - base64"
+    result:
+      accepted: "boolean"
+      response_envelope: "object - optional encrypted response"
+      
+  interop/handshake:
+    description: "Initiate key exchange"
+    params:
+      brain_id: "string"
+      public_key: "string - hex"
+      capabilities: "object"
+    result:
+      challenge: "string - hex"
+      responder_public_key: "string - hex"
+
+# =============================================================================
+# NOTIFICATIONS (NO RESPONSE)
+# =============================================================================
+
+notifications:
+  log:
+    description: "Log message from brain"
+    params:
+      level: "string - debug | info | warn | error"
+      message: "string"
+      
+  progress:
+    description: "Progress update for long operations"
+    params:
+      operation_id: "string"
+      progress: "float - 0.0 to 1.0"
+      message: "string"
+      
+  capability_changed:
+    description: "Brain capabilities have changed"
+    params:
+      capabilities: "object - new capability map"
+
+# =============================================================================
+# TRANSPORT IMPLEMENTATION
+# =============================================================================
+
+implementation:
+  rust_approach:
+    description: >
+      Each brain binary supports both HTTP and stdio modes via CLI flag.
+      
+    cli_flags:
+      --mode: "http | stdio (default: http)"
+      --port: "port number (http mode only)"
+      
+    example_usage:
+      http: "prefrontal-cortex --mode http --port 8000"
+      stdio: "prefrontal-cortex --mode stdio"
+      
+  stdio_handler:
+    description: >
+      Read JSON-RPC requests from stdin, write responses to stdout.
+      Use stderr for logging (not protocol messages).
+      
+    pseudocode: |
+      loop {
+        line = stdin.read_line()
+        request = parse_jsonrpc(line)
+        
+        match request.method {
+          "initialize" => handle_initialize(request),
+          "query" => handle_query(request),
+          "store" => handle_store(request),
+          ...
+        }
+        
+        response = build_jsonrpc_response(request.id, result)
+        stdout.write_line(json(response))
+      }
+      
+  process_spawning:
+    description: >
+      Parent process (e.g., PFC in hybrid mode) spawns child brains.
+      
+    rust_example: |
+      use std::process::{Command, Stdio};
+      use std::io::{BufRead, BufReader, Write};
+      
+      let mut child = Command::new("hippocampus")
+          .arg("--mode").arg("stdio")
+          .stdin(Stdio::piped())
+          .stdout(Stdio::piped())
+          .stderr(Stdio::inherit())
+          .spawn()?;
+      
+      let stdin = child.stdin.as_mut().unwrap();
+      let stdout = BufReader::new(child.stdout.take().unwrap());
+      
+      // Send request
+      writeln!(stdin, r#"{{"jsonrpc":"2.0","method":"query","params":{{...}},"id":1}}"#)?;
+      
+      // Read response
+      let response = stdout.lines().next().unwrap()?;
+
+# =============================================================================
+# MCP SERVER MODE
+# =============================================================================
+
+mcp_server:
+  description: >
+    A neurostack brain can act as an MCP server, exposing its capabilities
+    as tools to MCP clients (like Claude Desktop, IDEs, etc.).
+    
+  exposed_tools:
+    query_memory:
+      description: "Search brain's episodic memory"
+      input_schema:
+        type: object
+        properties:
+          query: { type: string, description: "Natural language query" }
+          limit: { type: integer, default: 5 }
+          
+    store_experience:
+      description: "Store a new experience"
+      input_schema:
+        type: object
+        properties:
+          content: { type: string }
+          context: { type: string }
+          valence: { type: number, minimum: -1, maximum: 1 }
+          
+    get_decision:
+      description: "Get brain's decision on input"
+      input_schema:
+        type: object
+        properties:
+          input: { type: string }
+          context: { type: string }
+          
+  exposed_resources:
+    brain_state:
+      uri: "brain://state"
+      description: "Current brain state and metrics"
+      
+    recent_experiences:
+      uri: "brain://experiences/recent"
+      description: "Recently stored experiences"
+      
+  mcp_manifest:
+    name: "neurostack-brain"
+    version: "1.0.0"
+    description: "Cognitive architecture brain region"
+    capabilities:
+      tools: true
+      resources: true
+      prompts: false
+
+# =============================================================================
+# HYBRID DEPLOYMENT
+# =============================================================================
+
+hybrid_deployment:
+  description: >
+    PFC runs as HTTP server (external API), spawns memory regions as
+    stdio subprocesses. Best of both worlds.
+    
+  architecture: |
+    ┌─────────────────────────────────────────────────────────────┐
+    │                    External Clients                          │
+    │              (HTTP REST API, MCP clients)                    │
+    └─────────────────────────────┬───────────────────────────────┘
+                                  │ HTTP / MCP
+                                  ▼
+    ┌─────────────────────────────────────────────────────────────┐
+    │                  PREFRONTAL CORTEX                           │
+    │                    (HTTP + MCP Server)                       │
+    │                        :8000                                 │
+    └─────────────────────────────┬───────────────────────────────┘
+                                  │ stdio (JSON-RPC)
+                    ┌─────────────┼─────────────┐
+                    │             │             │
+                    ▼             ▼             ▼
+              ┌──────────┐ ┌──────────┐ ┌──────────┐
+              │HIPPOCAMPUS│ │  AMYGDALA │ │CEREBELLUM│
+              │  (stdio)  │ │  (stdio)  │ │  (stdio) │
+              └──────────┘ └──────────┘ └──────────┘
+              
+  benefits:
+    - "Single port exposure (8000)"
+    - "No inter-service network traffic"
+    - "Simpler deployment (one docker container)"
+    - "Memory regions isolated as processes"
+    - "Easy to add/remove regions"
+    
+  docker_example: |
+    # Single container with PFC spawning regions
+    FROM rust:1.75 as builder
+    # ... build all binaries ...
+    
+    FROM debian:bookworm-slim
+    COPY --from=builder /app/target/release/prefrontal-cortex /usr/local/bin/
+    COPY --from=builder /app/target/release/hippocampus /usr/local/bin/
+    COPY --from=builder /app/target/release/amygdala /usr/local/bin/
+    # ...
+    
+    EXPOSE 8000
+    CMD ["prefrontal-cortex", "--mode", "http", "--spawn-regions", "stdio"]
+
+# =============================================================================
+# ENCRYPTION OVER STDIO
+# =============================================================================
+
+encryption:
+  description: >
+    For inter-brain messages over stdio, the same X25519/ChaCha20 encryption
+    applies. The encrypted envelope is sent as JSON-RPC params.
+    
+  flow:
+    local_subprocess:
+      description: "No encryption needed - same trust boundary"
+      
+    remote_brain_via_stdio:
+      description: "Encrypt payload, send via interop/message method"
+      example: |
+        {
+          "jsonrpc": "2.0",
+          "method": "interop/message",
+          "params": {
+            "envelope": {
+              "from_brain": "neuro-alpha",
+              "to_brain": "neuro-beta",
+              "nonce": "base64...",
+              "ciphertext": "base64..."
+            }
+          },
+          "id": 42
+        }
+
+# =============================================================================
+# IMPLEMENTATION PLAN
+# =============================================================================
+
+implementation_plan:
+  phase_1:
+    name: "Core stdio transport"
+    tasks:
+      - "Add JsonRpcRequest/Response types to cortical-shared"
+      - "Create StdioTransport trait"
+      - "Add --mode flag to all brain binaries"
+      - "Implement stdio handler loop"
+      
+  phase_2:
+    name: "Hybrid deployment"
+    tasks:
+      - "Add subprocess spawning to PFC"
+      - "Create StdioRegionClient (like RegionClient but over stdio)"
+      - "Add --spawn-regions flag to PFC"
+      
+  phase_3:
+    name: "MCP server mode"
+    tasks:
+      - "Implement MCP tool definitions"
+      - "Add MCP resource handlers"
+      - "Create MCP manifest generation"
+      - "Test with Claude Desktop"
+
+acceptance_criteria:
+  - "Brain can run in stdio mode: brain --mode stdio"
+  - "JSON-RPC requests/responses work over stdin/stdout"
+  - "PFC can spawn regions as subprocesses"
+  - "Brain can act as MCP server for external clients"
+  - "Encrypted inter-brain messages work over stdio"
