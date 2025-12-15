@@ -2,23 +2,18 @@
 //!
 //! This crate provides shared data models, error types, and HTTP clients
 //! used across all brain region services.
+//!
+//! # Module Organization
+//!
+//! - **core** - Fundamental types: models, errors, config
+//! - **comms** - Communication: HTTP clients, inter-brain protocol, crypto
+//! - **policy** - Decision policies: pathways, help-seeking, domains
 
-pub mod assistance;
-pub mod clients;
-pub mod config;
-pub mod crypto;
-pub mod domains;
-pub mod errors;
-pub mod interop;
-pub mod models;
-pub mod policies;
+pub mod core;
+pub mod comms;
+pub mod policy;
 
-pub use assistance::*;
-pub use clients::*;
-pub use config::*;
-pub use crypto::*;
-pub use domains::*;
-pub use errors::*;
-pub use interop::*;
-pub use models::*;
-pub use policies::*;
+// Re-export all public types for convenience
+pub use core::*;
+pub use comms::*;
+pub use policy::*;
