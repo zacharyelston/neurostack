@@ -1,0 +1,194 @@
+version: '3.8'
+
+services:
+  # Infrastructure Services
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    networks:
+      - cortical-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: cortical
+      POSTGRES_PASSWORD: cortical_secret
+      POSTGRES_DB: cortical_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - cortical-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cortical -d cortical_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Brain Region Services
+  thalamus:
+    build:
+      context: .
+      dockerfile: crates/thalamus/Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      - SERVICE_NAME=thalamus
+      - RUST_LOG=info
+    networks:
+      - cortical-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  prefrontal-cortex:
+    build:
+      context: .
+      dockerfile: crates/prefrontal-cortex/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - SERVICE_NAME=prefrontal_cortex
+      - RUST_LOG=info
+      - THALAMUS_URL=http://thalamus:8000
+      - HIPPOCAMPUS_URL=http://hippocampus:8000
+      - BASAL_GANGLIA_URL=http://basal-ganglia:8000
+      - CEREBELLUM_URL=http://cerebellum:8000
+      - AMYGDALA_URL=http://amygdala:8000
+    depends_on:
+      thalamus:
+        condition: service_healthy
+      hippocampus:
+        condition: service_healthy
+      basal-ganglia:
+        condition: service_healthy
+      cerebellum:
+        condition: service_healthy
+      amygdala:
+        condition: service_healthy
+    networks:
+      - cortical-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  hippocampus:
+    build:
+      context: .
+      dockerfile: crates/hippocampus/Dockerfile
+    ports:
+      - "8002:8000"
+    environment:
+      - SERVICE_NAME=hippocampus
+      - RUST_LOG=info
+      - QDRANT_URL=http://qdrant:6333
+      - DATABASE_URL=postgres://cortical:cortical_secret@postgres:5432/cortical_db
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - cortical-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  basal-ganglia:
+    build:
+      context: .
+      dockerfile: crates/basal-ganglia/Dockerfile
+    ports:
+      - "8003:8000"
+    environment:
+      - SERVICE_NAME=basal_ganglia
+      - RUST_LOG=info
+      - QDRANT_URL=http://qdrant:6333
+      - DATABASE_URL=postgres://cortical:cortical_secret@postgres:5432/cortical_db
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - cortical-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  cerebellum:
+    build:
+      context: .
+      dockerfile: crates/cerebellum/Dockerfile
+    ports:
+      - "8004:8000"
+    environment:
+      - SERVICE_NAME=cerebellum
+      - RUST_LOG=info
+      - QDRANT_URL=http://qdrant:6333
+      - DATABASE_URL=postgres://cortical:cortical_secret@postgres:5432/cortical_db
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - cortical-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  amygdala:
+    build:
+      context: .
+      dockerfile: crates/amygdala/Dockerfile
+    ports:
+      - "8005:8000"
+    environment:
+      - SERVICE_NAME=amygdala
+      - RUST_LOG=info
+      - QDRANT_URL=http://qdrant:6333
+      - DATABASE_URL=postgres://cortical:cortical_secret@postgres:5432/cortical_db
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - cortical-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  cortical-net:
+    driver: bridge
+
+volumes:
+  qdrant_data:
+  postgres_data:

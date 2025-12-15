@@ -1,0 +1,14 @@
+policies:
+  fast_path:
+    enabled: true
+    negative_similarity_threshold: 0.82
+    threat_confidence_threshold: 0.70
+    max_latency_ms: 150
+  slow_path:
+    enabled: true
+    min_confidence_to_answer: 0.65
+    novelty_threshold: 0.60
+    require_bg_gate: true
+  thalamus_gating:
+    enabled: true
+    allow_pfc_feedback: true

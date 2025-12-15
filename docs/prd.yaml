@@ -1,0 +1,54 @@
+deviations:
+  pfc_centralization:
+    current_design: "PFC is sole mediator of reads/writes across regions."
+    biological_reality: "No sole mediator. Many loops operate in parallel; some bypass conscious control."
+    impact:
+      - simplifies architecture and security
+      - reduces realism: fewer emergent conflicts between habit/emotion and reasoning
+    mitigation_option:
+      - allow limited fast-path decisions that bypass full PFC deliberation
+
+  thalamus_as_router_only:
+    current_design: "Thalamus normalizes + embeds; one-way into PFC."
+    biological_reality: "Thalamus is gated by cortex; cortex->thalamus feedback is dominant and shapes perception/attention."
+    impact:
+      - loses attention and expectation effects
+      - less adaptive preprocessing
+    mitigation_option:
+      - add PFC->Thalamus feedback endpoint (e.g., /set_gating_policy)
+
+  amygdala_as_memory_store:
+    current_design: "Amygdala stores good/bad experiences in separate vector+SQL stores."
+    biological_reality: "Amygdala primarily tags salience/valence and modulates memory encoding and retrieval; does not own episodic storage."
+    impact:
+      - over-assigns storage ownership to amygdala
+      - simplifies implementation of valence-separated retrieval
+    mitigation_option:
+      - treat amygdala stores as valence-index + alarm history, while episodic content lives in hippocampus/cortex stores
+
+  basal_ganglia_as_advisory:
+    current_design: "Basal ganglia provides action scores to PFC."
+    biological_reality: "Basal ganglia gates whether actions proceed via thalamo-cortical loops."
+    impact:
+      - weakens habit and gating behavior
+      - reduces realism of compulsive repetition vs deliberate control
+    mitigation_option:
+      - implement BG as a hard gate (approve/block/require-alternative) with configurable thresholds
+
+  absence_of_reflex_autonomic_path:
+    current_design: "All outputs originate from deliberative decision orchestration."
+    biological_reality: "Fast threat responses can bypass deliberation (amygdala->brainstem)."
+    impact:
+      - misses fast safety reflex behavior
+      - increases latency for urgent decisions
+    mitigation_option:
+      - add a minimal 'brainstem/autonomic' fast-path service or PFC fast-path mode
+
+  consolidation_and_decay:
+    current_design: "Memories persist indefinitely unless manually pruned."
+    biological_reality: "Hippocampal traces consolidate; salience affects retention; decay is real."
+    impact:
+      - higher storage growth
+      - less realistic memory dynamics
+    mitigation_option:
+      - implement time decay, compaction, and consolidation jobs

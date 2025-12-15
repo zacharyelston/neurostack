@@ -12,6 +12,16 @@ Cortical Compose is a containerized cognitive system modeled after brain regions
 
 ---
 
+## TL;DR
+
+If you want this to feel like real topology while staying manageable:
+	•	Keep PFC as “entrypoint”, but implement internal pathways:
+	•	fast_reflex() (amygdala-negative)
+	•	deliberate_loop() (hippo + bg + cereb + amyg)
+	•	thalamus_feedback_update() (attention/gating tuning)
+
+    That gets you 90% of the realism for 10% of the complexity. Which is the only ratio worth pursuing, in any species.
+
 ## Technology Stack
 
 ### Backend (Brain Region Services)

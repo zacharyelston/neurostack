@@ -1,0 +1,89 @@
+topology:
+  principle: distributed_loops_no_single_controller
+  notes:
+    - Cortex modulates more than it commands
+    - Thalamus is a gated relay with heavy cortical feedback
+    - Basal ganglia gates action selection via cortico-striato-thalamo-cortical loops
+    - Amygdala tags salience/valence and can trigger fast responses
+    - Hippocampus binds episodes and sequences; supports contextual recall
+    - Cerebellum provides fast predictive correction loops
+
+nodes:
+  cortex:
+    includes: [prefrontal_cortex, sensory_association_cortex]
+    roles: [integration, planning, inhibition, context_weighting]
+  thalamus:
+    roles: [sensory_relay, gating, attention_routing]
+  basal_ganglia:
+    roles: [action_gating, habit, reinforcement]
+  amygdala:
+    roles: [salience, valence_tagging, threat_fast_path]
+  hippocampus:
+    roles: [episodic_binding, sequence_memory, contextual_retrieval]
+  cerebellum:
+    roles: [prediction, error_correction, timing_optimization]
+  brainstem_autonomic:
+    roles: [reflex_output, arousal, autonomic_response]
+
+edges:
+  # Sensory routing and gating
+  - from: sensory_input
+    to: thalamus
+    type: feedforward
+  - from: thalamus
+    to: cortex
+    type: feedforward
+  - from: cortex
+    to: thalamus
+    type: feedback_gating
+
+  # Emotional salience and memory modulation
+  - from: thalamus
+    to: amygdala
+    type: fast_feedforward
+  - from: amygdala
+    to: hippocampus
+    type: modulation_encoding
+  - from: hippocampus
+    to: cortex
+    type: contextual_recall
+  - from: cortex
+    to: hippocampus
+    type: retrieval_cue
+
+  # Action selection loops (core)
+  - from: cortex
+    to: basal_ganglia
+    type: action_proposals
+  - from: basal_ganglia
+    to: thalamus
+    type: gating_signal
+  - from: thalamus
+    to: cortex
+    type: gated_action_feedback
+
+  # Fast outputs and override
+  - from: amygdala
+    to: brainstem_autonomic
+    type: fast_output
+  - from: brainstem_autonomic
+    to: action_output
+    type: reflex_execution
+
+  # Cerebellar correction loops
+  - from: cortex
+    to: cerebellum
+    type: efference_copy
+  - from: cerebellum
+    to: cortex
+    type: prediction_error_feedback
+  - from: cerebellum
+    to: action_output
+    type: timing_calibration
+
+action_output:
+  sources:
+    - cortex_slow_path
+    - basal_ganglia_gated_path
+    - amygdala_brainstem_fast_path
+    - cerebellar_tuning
