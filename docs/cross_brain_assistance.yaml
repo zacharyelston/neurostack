@@ -1,0 +1,183 @@
+policy:
+  name: cross_brain_assistance
+  version: 1.0.0
+  status: mandatory
+  applies_to: all_brains
+  purpose: >
+    Prevent internal bias, tunnel vision, and local optimization by enforcing
+    structured help-seeking, cross-domain review, and perspective diversity
+    across independent brain instances.
+
+core_principles:
+  - no_brain_is_sufficient_alone
+  - confidence_requires_challenge
+  - expertise_narrows_vision
+  - outsiders_expand_perspective
+  - structure_and_process_matter_as_much_as_correctness
+  - help_seeking_is_not_failure
+
+help_seeking_triggers:
+  confidence_risk:
+    any_of:
+      - self_confidence_lt: 0.65
+      - self_confidence_gt: 0.85
+        and:
+          evidence_diversity: low
+      - internal_region_conflict: true
+
+  novelty_or_ambiguity:
+    any_of:
+      - novelty_score_gt: threshold
+      - unclear_problem_framing: true
+      - conflicting_interpretations: true
+
+  high_stakes:
+    any_of:
+      - irreversible_decision: true
+      - safety_impact: true
+      - compliance_impact: true
+      - long_term_architecture_impact: true
+
+  stuck_state:
+    any_of:
+      - repeated_internal_loops: true
+      - revisions_without_improvement_gte: 2
+      - intuition_without_justification: true
+
+  inspiration_mode:
+    any_of:
+      - open_ended_design: true
+      - early_ideation: true
+      - alternative_exploration: true
+
+ask_two_others_rule:
+  required: true
+  minimum_reviewers: 2
+  constraints:
+    - reviewers_must_be_independent: true
+    - reviewers_must_not_share_primary_domain: true
+  required_pairing:
+    - role: domain_expert
+      capability_level_gte: 7
+    - role: outside_domain_reviewer
+      capability_level_lte: 4
+
+required_review_categories:
+  domain_review:
+    focus:
+      - correctness
+      - assumption_validity
+      - edge_cases
+  structure_review:
+    focus:
+      - logical_flow
+      - dependency_ordering
+      - modularity
+      - hidden_coupling
+  organization_review:
+    focus:
+      - clarity
+      - naming
+      - separation_of_concerns
+      - cognitive_load
+  process_review:
+    focus:
+      - repeatability
+      - failure_modes
+      - monitoring
+      - feedback_loops
+      - operational_risk
+
+review_requirements:
+  minimum_categories_required:
+    - domain_review
+    - structure_review
+    - organization_review
+    - process_review
+  note: >
+    A solution that functions correctly but fails structure or process review
+    is considered incomplete.
+
+help_request_schema:
+  required_fields:
+    - intent
+    - current_approach
+    - stuck_description
+    - constraints
+    - requested_help_types
+  requested_help_types:
+    allowed:
+      - critique
+      - alternatives
+      - risk_assessment
+      - inspiration
+      - structure_check
+      - process_check
+
+review_response_schema:
+  required_fields:
+    - perspective_type
+    - key_observations
+    - risks_identified
+    - suggested_changes
+    - confidence
+    - assumptions
+  confidence_range: [0.0, 1.0]
+
+disagreement_handling:
+  rules:
+    - do_not_average_opinions: true
+    - identify_divergent_assumptions: true
+    - identify_missing_evidence: true
+  resolution_paths:
+    - request_more_data
+    - choose_safest_reversible_option
+    - escalate_to_additional_reviewer
+
+anti_bias_safeguards:
+  reviewer_selection:
+    forbidden_criteria:
+      - agreement_likelihood
+      - historical_validation_only
+      - identical_capability_profiles
+  capability_inversion_check:
+    required: true
+    description: >
+      At least one reviewer must be less capable in the domain but strong in
+      reasoning, structure, or critique.
+  historical_drift_check:
+    enabled: true
+    actions:
+      - rotate_reviewers_periodically
+      - compare_against_past_outcomes
+      - flag_overconfidence_trends
+
+exceptions:
+  proceed_without_help_allowed_if:
+    all_of:
+      - self_confidence_gte: 0.75
+      - risk_level: low
+      - decision_is_reversible: true
+      - high_similarity_to_past_success: true
+      - no_internal_region_conflict: true
+  note: >
+    Even when proceeding alone is allowed, post-hoc review is recommended.
+
+recording_and_learning:
+  record_events:
+    - help_requests
+    - reviewers_selected
+    - review_feedback
+    - final_decision
+    - outcomes
+  storage:
+    memory_type: episodic_social_reasoning
+  learning_updates:
+    - recalibrate_self_confidence
+    - recalibrate_capabilities
+    - improve_reviewer_selection
+
+cultural_assertion:
+  statement: >
+    If help was not requested, something was probably missed.
+  classification: empirical_rule

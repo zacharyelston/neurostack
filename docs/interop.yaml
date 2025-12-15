@@ -1,0 +1,288 @@
+prd:
+  name: neurostack-interop
+  version: 1.0.0
+  scope: brain_to_brain_communication
+  summary: >
+    Defines how independent "brain" deployments discover each other, advertise
+    capabilities on a 0–9 scale, negotiate tasks, exchange messages (optionally
+    in LaTeX), and coordinate LLM-backed reasoning safely and traceably.
+
+assumptions:
+  - Secure registration and transport auth are already implemented externally
+  - Each brain has an LLM and region services behind a single public gateway
+  - Each brain is autonomous with private memory and policies
+
+goals:
+  - Standardize inter-brain discovery, capability advertising, and task routing
+  - Enable reliable request/response and optional asynchronous messaging
+  - Support LaTeX as a structured, portable "communication document" format
+  - Ensure traceability, idempotency, and loop prevention
+  - Keep private memory private; share only policy-approved summaries/artifacts
+
+non_goals:
+  - Shared state via shared databases
+  - Perfect truth guarantees from any brain
+  - Infinite back-and-forth conversations without explicit budgets
+  - Real-time streaming requirements (can be added later)
+
+concepts:
+  brain:
+    description: "An independent docker-compose deployment providing task-focused reasoning and memory."
+    identity:
+      brain_id: "stable unique identifier"
+      instance_id: "ephemeral runtime identifier"
+      protocol_version: "interop protocol version supported"
+  capability:
+    description: "A task/domain skill advertised as an integer level 0–9."
+    scale:
+      0: "no support"
+      1: "minimal / experimental"
+      3: "basic"
+      5: "competent"
+      7: "strong"
+      9: "expert"
+  message:
+    description: "An authenticated, versioned envelope carrying typed payload and optional LaTeX document."
+  claim:
+    description: "A statement with confidence, evidence pointers, and assumptions."
+
+design_principles:
+  - schema_first: "All messages validate against versioned JSON Schema."
+  - bounded_context: "No direct access to another brain's internal stores or region APIs."
+  - trace_everything: "Trace IDs propagate across brains; spans recorded locally."
+  - explicit_budgets: "Every conversation has TTL, hop limits, and token/turn budgets."
+  - epistemic_honesty: "Every recommendation includes confidence and assumptions."
+
+public_api:
+  base_path: "/interop"
+  endpoints:
+    - name: handshake
+      method: POST
+      path: "/handshake"
+      purpose: "Advertise identity, capabilities, policies, and limits."
+    - name: capabilities
+      method: GET
+      path: "/capabilities"
+      purpose: "Fetch current capability advertisement (cached)."
+    - name: message
+      method: POST
+      path: "/message"
+      purpose: "Send a typed message with optional LaTeX payload."
+    - name: query
+      method: POST
+      path: "/query"
+      purpose: "Request structured knowledge or memory summaries."
+    - name: task
+      method: POST
+      path: "/task"
+      purpose: "Propose/assign a task contract with success criteria."
+    - name: feedback
+      method: POST
+      path: "/feedback"
+      purpose: "Return outcome feedback for learning and calibration."
+    - name: health
+      method: GET
+      path: "/health"
+      purpose: "Liveness/compatibility check."
+
+headers_required:
+  - X-Brain-Id
+  - X-Instance-Id
+  - X-Trace-Id
+  - X-Message-Id
+  - X-Protocol-Version
+  - X-Idempotency-Key
+
+message_envelope:
+  required_fields:
+    - protocol_version
+    - message_id
+    - trace_id
+    - from_brain
+    - to_brain
+    - timestamp
+    - ttl_ms
+    - hop_limit
+    - type
+    - payload
+  fields:
+    protocol_version: "string (e.g., 1.0)"
+    message_id: "uuid"
+    trace_id: "uuid"
+    span_id: "uuid"
+    from_brain: "brain_id"
+    to_brain: "brain_id"
+    timestamp: "iso8601"
+    ttl_ms: "int"
+    hop_limit: "int"
+    conversation_id: "uuid"
+    type:
+      enum:
+        - discover
+        - ask
+        - tell
+        - propose_task
+        - accept_task
+        - reject_task
+        - request_review
+        - review_response
+        - share_summary
+        - share_artifact
+        - warn
+        - reconcile
+        - feedback
+    epistemics:
+      confidence: "float 0..1"
+      risk_level: "low|medium|high"
+      assumptions: "list[string]"
+      evidence_refs: "list[evidence_ref]"
+    payload: "object"
+    latex:
+      enabled: "boolean"
+      format: "latex|latex+json"
+      content: "string"
+      attachments: "list[attachment_ref]"
+
+evidence_ref:
+  fields:
+    source_brain: "brain_id"
+    source_kind: "experience|artifact|trace|external_ref"
+    source_id: "string"
+    redaction_level: "private|summary|artifact"
+
+capability_advertisement:
+  fields:
+    brain_id: "string"
+    protocol_version: "string"
+    capabilities:
+      type: "map[string,int]"
+      description: "CapabilityName -> level 0..9"
+      examples:
+        "planning": 8
+        "math": 6
+        "code_generation": 7
+        "safety_review": 9
+        "domain_food_supply_chain": 3
+    specialties:
+      description: "Optional free-text tags for routing and UI"
+    limits:
+      max_payload_kb: 256
+      max_turns_per_conversation: 12
+      max_hops: 3
+      rate_limit_rpm: 60
+    share_policy:
+      allowed_exports:
+        - shareable_summary
+        - shareable_artifact
+      forbidden_exports:
+        - private_memory
+        - raw_user_data
+    llm_profile:
+      model_family: "string"
+      context_window_tokens: "int"
+      tool_access: "none|restricted|full"
+      deterministic_mode_supported: "boolean"
+
+task_contract:
+  description: "A structured agreement used for delegation."
+  fields:
+    task_id: "uuid"
+    title: "string"
+    objective: "string"
+    inputs:
+      context: "object"
+      constraints: "object"
+      latex_brief: "optional string"
+    deliverables:
+      - name: "string"
+        type: "json|latex|markdown|code|artifact_ref"
+        acceptance_criteria: "list[string]"
+    evaluation:
+      rubric: "list[{metric:string, target:string}]"
+    budgets:
+      ttl_ms: 600000
+      max_turns: 6
+      max_tokens: 4000
+    permissions:
+      can_request_more_data: true
+      can_use_external_tools: false
+      export_level: "shareable_summary|shareable_artifact"
+
+latex_communication:
+  purpose: >
+    LaTeX is used as a portable, structured "communication document" for
+    reasoning traces, proofs, plans, or contracts. It is not used for raw chat.
+  rules:
+    - The authoritative message is the JSON envelope; LaTeX is an attached rendering.
+    - LaTeX must be deterministic and parsable with required sections.
+    - Brains must include a machine-readable JSON summary alongside LaTeX when decisions matter.
+
+  required_sections:
+    - "\\section*{Intent}"
+    - "\\section*{Context}"
+    - "\\section*{Assumptions}"
+    - "\\section*{Proposed Action}"
+    - "\\section*{Evidence}"
+    - "\\section*{Risks \\& Mitigations}"
+    - "\\section*{Confidence}"
+  optional_sections:
+    - "\\section*{Alternatives}"
+    - "\\section*{Questions}"
+    - "\\section*{Calculations}"
+
+  latex_style_constraints:
+    - "No external \\input or file includes"
+    - "No shell-escape dependencies"
+    - "No images required"
+    - "Max length: 2 pages equivalent"
+    - "Must compile under a minimal LaTeX environment"
+
+multi_brain_routing:
+  discovery:
+    - "Brain A calls /handshake on Brain B to fetch capabilities and limits."
+    - "Brain A caches /capabilities for routing decisions."
+  selection_policy:
+    - "Select candidate brains by highest capability score for the task category."
+    - "Tie-break by availability, rate limits, and share policy compatibility."
+  delegation_patterns:
+    - peer_review: "Ask another brain to critique a decision and surface risks."
+    - specialist_delegate: "Assign subtask to the best-capability brain via task_contract."
+    - consensus: "Query 2+ brains and reconcile based on confidence and evidence quality."
+
+loop_prevention:
+  controls:
+    - ttl_ms: "Drop expired messages."
+    - hop_limit: "Decrement per relay; drop at zero."
+    - idempotency: "Deduplicate by (from_brain, message_id, idempotency_key)."
+    - turn_budget: "Per conversation max turns enforced."
+    - semantic_dedupe: "Optional: hash of normalized payload to avoid repeats."
+
+safety_and_privacy:
+  export_controls:
+    - "Default export is shareable_summary."
+    - "Artifacts must pass redaction rules before export."
+  redaction_requirements:
+    - "Remove private memory references unless explicitly allowed."
+    - "Strip PII unless permitted by share policy."
+  epistemic_requirements:
+    - "Every recommendation includes confidence, assumptions, and evidence_refs."
+    - "High-risk actions must include mitigations or downgrade to 'request_more_data'."
+
+observability:
+  tracing:
+    - "trace_id is stable across brains in a conversation"
+    - "each brain creates local span_id for every inbound/outbound message"
+  logging:
+    - "Store interop transcripts as episodic events with export_policy tags"
+  metrics:
+    - "interop_latency_ms"
+    - "success_rate_by_capability"
+    - "disagreement_rate_in_peer_review"
+    - "loop_drop_count"
+
+acceptance_criteria:
+  - "Two brains can handshake and exchange capability advertisements."
+  - "Task delegation via task_contract works end-to-end with idempotency."
+  - "LaTeX messages include required sections and a JSON summary."
+  - "Loop prevention drops repeated or expired messages."
+  - "No private memory is exported by default."

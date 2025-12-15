@@ -1,0 +1,311 @@
+domain_catalog:
+  name: neurostack_domain_catalog
+  version: 1.0.0
+  purpose: >
+    Canonical list of domain titles used to create brain profiles for routing,
+    cross-review, and bias testing. Includes review lenses, common failure
+    modes, and suggested cross-tests.
+
+  capability_scale:
+    range: [0, 9]
+    meaning:
+      0: no_support
+      1: experimental
+      3: basic
+      5: competent
+      7: strong
+      9: expert
+
+  # Review lenses are domain-agnostic "ways of judging" output.
+  review_lenses:
+    - correctness
+    - evidence_quality
+    - assumptions
+    - structure
+    - organization
+    - process
+    - risk
+    - safety
+    - operability
+    - maintainability
+    - clarity
+    - performance
+    - security
+    - cost
+
+  domains:
+    core_reasoning_meta:
+      description: Brains that critique thinking, logic, and decision quality.
+      items:
+        - id: general_reasoner
+          title: General Reasoner
+          primary_lenses: [correctness, assumptions, evidence_quality]
+          common_blindspots: [overgeneralization, vague_acceptance_criteria]
+          recommended_cross_reviewers: [critical_reviewer, assumptions_auditor]
+
+        - id: critical_reviewer
+          title: Critical Reviewer
+          primary_lenses: [risk, assumptions, evidence_quality]
+          common_blindspots: [over_index_on_risks, slow_to_converge]
+          recommended_cross_reviewers: [general_reasoner, clarity_communication_reviewer]
+
+        - id: structure_analyst
+          title: Structure Analyst
+          primary_lenses: [structure, maintainability]
+          common_blindspots: [underweight_domain_correctness]
+          recommended_cross_reviewers: [domain_specialist_any, process_engineer]
+
+        - id: process_engineer
+          title: Process Engineer
+          primary_lenses: [process, operability]
+          common_blindspots: [bureaucratic_overhead]
+          recommended_cross_reviewers: [simplicity_extremist, operational_readiness_reviewer]
+
+        - id: systems_thinker
+          title: Systems Thinker
+          primary_lenses: [second_order_effects, risk, operability]
+          common_blindspots: [analysis_paralysis]
+          recommended_cross_reviewers: [cost_resource_minimalist, failure_mode_analyst]
+
+        - id: risk_assessor
+          title: Risk Assessor
+          primary_lenses: [risk, safety]
+          common_blindspots: [overconservatism]
+          recommended_cross_reviewers: [alternative_solution_generator, compliance_interpreter]
+
+        - id: assumptions_auditor
+          title: Assumptions Auditor
+          primary_lenses: [assumptions, evidence_quality]
+          common_blindspots: [nitpicking_low_value]
+          recommended_cross_reviewers: [general_reasoner, domain_specialist_any]
+
+        - id: failure_mode_analyst
+          title: Failure Mode Analyst
+          primary_lenses: [risk, operability, process]
+          common_blindspots: [doom_spirals]
+          recommended_cross_reviewers: [performance_latency_optimizer, maintainability_advocate]
+
+    cognitive_architecture:
+      description: Brains focused on the neurostack model and multi-agent architecture.
+      items:
+        - id: cognitive_architecture_designer
+          title: Cognitive Architecture Designer
+          primary_lenses: [structure, process, assumptions]
+          common_blindspots: [metaphor_overreach]
+          recommended_cross_reviewers: [distributed_systems_architect, ai_safety_alignment_reviewer]
+
+        - id: distributed_systems_architect
+          title: Distributed Systems Architect
+          primary_lenses: [operability, failure_modes, structure]
+          common_blindspots: [complexity_creep]
+          recommended_cross_reviewers: [simplicity_extremist, security_threat_modeler]
+
+        - id: ai_safety_alignment_reviewer
+          title: AI Safety & Alignment Reviewer
+          primary_lenses: [safety, risk, assumptions]
+          common_blindspots: [blocking_bias]
+          recommended_cross_reviewers: [process_governance_designer, user_perspective_advocate]
+
+        - id: multi_agent_coordination_specialist
+          title: Multi-Agent Coordination Specialist
+          primary_lenses: [process, structure, operability]
+          common_blindspots: [overengineer_protocols]
+          recommended_cross_reviewers: [api_protocol_designer, simplicity_extremist]
+
+        - id: memory_systems_engineer
+          title: Memory Systems Engineer
+          primary_lenses: [correctness, maintainability, performance]
+          common_blindspots: [overfocus_storage_over_behavior]
+          recommended_cross_reviewers: [cognitive_architecture_designer, operational_readiness_reviewer]
+
+    engineering_technical:
+      description: Brains for implementation, performance, security, and data.
+      items:
+        - id: software_architecture_engineer
+          title: Software Architecture Engineer
+          primary_lenses: [structure, maintainability, correctness]
+          common_blindspots: [underweight_operability]
+          recommended_cross_reviewers: [devops_infrastructure_engineer, documentation_knowledge_designer]
+
+        - id: devops_infrastructure_engineer
+          title: Infrastructure & DevOps Engineer
+          primary_lenses: [operability, process, security]
+          common_blindspots: [overweight_tooling]
+          recommended_cross_reviewers: [cost_resource_minimalist, maintainability_advocate]
+
+        - id: security_threat_modeler
+          title: Security & Threat Modeling Specialist
+          primary_lenses: [security, risk]
+          common_blindspots: [overconservatism]
+          recommended_cross_reviewers: [api_protocol_designer, operational_readiness_reviewer]
+
+        - id: api_protocol_designer
+          title: API & Protocol Designer
+          primary_lenses: [organization, structure, correctness]
+          common_blindspots: [underweight_human_clarity]
+          recommended_cross_reviewers: [clarity_communication_reviewer, distributed_systems_architect]
+
+        - id: data_systems_storage_architect
+          title: Data Systems & Storage Architect
+          primary_lenses: [performance, correctness, operability]
+          common_blindspots: [schema_rigidity]
+          recommended_cross_reviewers: [memory_systems_engineer, maintainability_advocate]
+
+        - id: machine_learning_engineer
+          title: Machine Learning Engineer
+          primary_lenses: [correctness, evidence_quality, performance]
+          common_blindspots: [benchmarks_over_reality]
+          recommended_cross_reviewers: [risk_assessor, operational_readiness_reviewer]
+
+        - id: performance_latency_optimizer
+          title: Performance & Latency Optimizer
+          primary_lenses: [performance, operability]
+          common_blindspots: [premature_optimization]
+          recommended_cross_reviewers: [maintainability_advocate, process_engineer]
+
+    quality_roles:
+      description: Brains focused on clarity, documentation, maintainability, and readiness.
+      items:
+        - id: clarity_communication_reviewer
+          title: Clarity & Communication Reviewer
+          primary_lenses: [clarity, organization]
+          common_blindspots: [underweight_edge_cases]
+          recommended_cross_reviewers: [critical_reviewer, structure_analyst]
+
+        - id: documentation_knowledge_designer
+          title: Documentation & Knowledge Design Specialist
+          primary_lenses: [organization, clarity, process]
+          common_blindspots: [doc_heaviness]
+          recommended_cross_reviewers: [simplicity_extremist, software_architecture_engineer]
+
+        - id: naming_ontology_designer
+          title: Naming & Ontology Designer
+          primary_lenses: [organization, clarity]
+          common_blindspots: [overpolish]
+          recommended_cross_reviewers: [api_protocol_designer, maintainability_advocate]
+
+        - id: maintainability_advocate
+          title: Maintainability Advocate
+          primary_lenses: [maintainability, structure, process]
+          common_blindspots: [underweight_speed]
+          recommended_cross_reviewers: [cost_resource_minimalist, performance_latency_optimizer]
+
+        - id: operational_readiness_reviewer
+          title: Operational Readiness Reviewer
+          primary_lenses: [operability, process, risk]
+          common_blindspots: [gatekeeping]
+          recommended_cross_reviewers: [devops_infrastructure_engineer, clarity_communication_reviewer]
+
+        - id: testability_verification_analyst
+          title: Testability & Verification Analyst
+          primary_lenses: [correctness, process, maintainability]
+          common_blindspots: [overinstrumentation]
+          recommended_cross_reviewers: [software_architecture_engineer, failure_mode_analyst]
+
+    creative_exploratory:
+      description: Brains used for ideation, alternatives, and novel framing.
+      items:
+        - id: conceptual_explorer
+          title: Conceptual Explorer
+          primary_lenses: [alternatives, assumptions]
+          common_blindspots: [low_concreteness]
+          recommended_cross_reviewers: [process_engineer, critical_reviewer]
+
+        - id: alternative_solution_generator
+          title: Alternative Solution Generator
+          primary_lenses: [alternatives, structure]
+          common_blindspots: [ignores_constraints]
+          recommended_cross_reviewers: [risk_assessor, api_protocol_designer]
+
+        - id: constraint_breaking_ideator
+          title: Constraint-Breaking Ideator
+          primary_lenses: [alternatives]
+          common_blindspots: [violates_requirements]
+          recommended_cross_reviewers: [compliance_interpreter, security_threat_modeler]
+
+    human_org:
+      description: Brains that stress-test social, operational, and governance impacts.
+      items:
+        - id: ethics_impact_reviewer
+          title: Ethics & Impact Reviewer
+          primary_lenses: [risk, safety, assumptions]
+          common_blindspots: [overcaution]
+          recommended_cross_reviewers: [user_perspective_advocate, ai_safety_alignment_reviewer]
+
+        - id: user_perspective_advocate
+          title: User Perspective Advocate
+          primary_lenses: [clarity, organization, risk]
+          common_blindspots: [underweight_system_constraints]
+          recommended_cross_reviewers: [software_architecture_engineer, operational_readiness_reviewer]
+
+        - id: process_governance_designer
+          title: Process & Governance Designer
+          primary_lenses: [process, operability, risk]
+          common_blindspots: [process_overkill]
+          recommended_cross_reviewers: [simplicity_extremist, testability_verification_analyst]
+
+    wildcards:
+      description: Bias disruptors and tie-breakers for review diversity.
+      items:
+        - id: non_expert_generalist
+          title: Non-Expert Generalist
+          primary_lenses: [clarity, organization]
+          common_blindspots: [misses_deep_edge_cases]
+          recommended_cross_reviewers: [domain_specialist_any, clarity_communication_reviewer]
+
+        - id: first_principles_reductionist
+          title: First-Principles Reductionist
+          primary_lenses: [assumptions, correctness]
+          common_blindspots: [reinvents_wheels]
+          recommended_cross_reviewers: [systems_thinker, process_engineer]
+
+        - id: simplicity_extremist
+          title: Simplicity Extremist
+          primary_lenses: [structure, cost, maintainability]
+          common_blindspots: [oversimplification]
+          recommended_cross_reviewers: [distributed_systems_architect, failure_mode_analyst]
+
+        - id: worst_case_scenario_thinker
+          title: Worst-Case Scenario Thinker
+          primary_lenses: [risk, security]
+          common_blindspots: [paranoia_bias]
+          recommended_cross_reviewers: [alternative_solution_generator, operational_readiness_reviewer]
+
+        - id: cost_resource_minimalist
+          title: Cost & Resource Minimalist
+          primary_lenses: [cost, process, maintainability]
+          common_blindspots: [underbuild_risk]
+          recommended_cross_reviewers: [devops_infrastructure_engineer, risk_assessor]
+
+        - id: compliance_interpreter
+          title: Regulatory & Compliance Interpreter
+          primary_lenses: [risk, process]
+          common_blindspots: [rigidity]
+          recommended_cross_reviewers: [security_threat_modeler, clarity_communication_reviewer]
+
+  # Test scaffolding hints for an architect to build a test matrix quickly.
+  test_scaffolding:
+    cross_test_rules:
+      - name: two_reviewer_minimum
+        description: "Every test run must include at least 2 reviewers: one high-domain, one outside-domain."
+      - name: lens_coverage
+        description: "Every test must include at least 3 distinct review lenses, including structure and process."
+      - name: disagreement_drill
+        description: "At least 20% of tests must force disagreement and measure reconciliation behavior."
+
+    suggested_test_types:
+      - id: spec_review
+        description: "Given a PRD, produce critique and improvements; measure lens coverage + actionable changes."
+        required_domains: [critical_reviewer, structure_analyst, process_engineer]
+
+      - id: protocol_design
+        description: "Design an API/protocol; measure clarity, invariants, loop prevention, operability."
+        required_domains: [api_protocol_designer, security_threat_modeler, clarity_communication_reviewer]
+
+      - id: failure_mode_tabletop
+        description: "Simulate failures; measure mitigations, monitoring, and rollback plans."
+        required_domains: [failure_mode_analyst, devops_infrastructure_engineer, risk_assessor]
+
+      - id: simplification_challenge
+        description: "Force a simpler design while preserving requirements; measure complexity reduction."
+        required_domains: [simplicity_extremist, distributed_systems_architect, maintainability_advocate]

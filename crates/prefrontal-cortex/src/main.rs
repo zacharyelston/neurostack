@@ -16,15 +16,18 @@ use axum::{
 };
 use cortical_shared::{
     CorticalError, Decision, DecisionAction, DecisionRequest, ExperienceSource,
-    FeedbackRequest, GateDecision, HealthResponse, PathwayType, PolicyConfig,
-    PrefrontalCortexConfig, RegionClient, ThalamusClient,
+    FeedbackRequest, GateDecision, HealthResponse, HelpSeekingConfig, PathwayType,
+    PolicyConfig, PrefrontalCortexConfig, RegionClient, ThalamusClient,
 };
 use std::sync::Arc;
 use std::time::Instant;
 use tower_http::trace::TraceLayer;
 use tracing::{info, instrument, warn};
 
+mod help_seeking;
 mod pathways;
+
+use help_seeking::{build_decision_context, evaluate_help_seeking};
 use pathways::{deliberate_loop, fast_reflex, select_pathway};
 
 /// Application state shared across handlers
@@ -32,6 +35,7 @@ use pathways::{deliberate_loop, fast_reflex, select_pathway};
 pub struct AppState {
     pub config: Arc<PrefrontalCortexConfig>,
     pub policies: Arc<PolicyConfig>,
+    pub help_seeking_config: Arc<HelpSeekingConfig>,
     pub thalamus: ThalamusClient,
     pub hippocampus: RegionClient,
     pub basal_ganglia: RegionClient,
@@ -59,6 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Load policy configuration (defaults from expose-knobs.yaml)
     let policies = PolicyConfig::default();
+    let help_seeking_config = HelpSeekingConfig::default();
     
     let state = AppState {
         thalamus: ThalamusClient::new(&config.thalamus_url),
@@ -68,6 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         amygdala: RegionClient::new(&config.amygdala_url, "amygdala"),
         config: Arc::new(config.clone()),
         policies: Arc::new(policies),
+        help_seeking_config: Arc::new(help_seeking_config),
     };
 
     let app = Router::new()
@@ -153,17 +159,31 @@ async fn decide(
     .await
     .map_err(AppError)?;
 
-    // Step 4: Select pathway and determine action
+    // Step 4: Evaluate help-seeking triggers (cross_brain_assistance policy)
+    let decision_context = build_decision_context(
+        &deliberate_result,
+        false, // is_irreversible - would come from request metadata
+        false, // has_safety_impact - would come from request metadata
+        0,     // revision_count - would track across conversation
+    );
+    let help_eval = evaluate_help_seeking(&decision_context, &state.help_seeking_config);
+
+    // Step 5: Select pathway and determine action
     let (pathway, reasoning) = select_pathway(&fast_check, &deliberate_result, &state.policies);
 
     let action = match pathway {
         PathwayType::FastReflex => DecisionAction::Defer,
         PathwayType::DeliberateLoop => {
-            // Check BG gate for final approval
-            match deliberate_result.bg_gate.decision {
-                GateDecision::Approve => DecisionAction::Act,
-                GateDecision::Block => DecisionAction::Defer,
-                GateDecision::RequireAlternative => DecisionAction::RequestMoreData,
+            // If help-seeking triggered and can't proceed alone, request more data
+            if help_eval.should_seek_help && !help_eval.can_proceed_alone {
+                DecisionAction::RequestMoreData
+            } else {
+                // Check BG gate for final approval
+                match deliberate_result.bg_gate.decision {
+                    GateDecision::Approve => DecisionAction::Act,
+                    GateDecision::Block => DecisionAction::Defer,
+                    GateDecision::RequireAlternative => DecisionAction::RequestMoreData,
+                }
             }
         }
         PathwayType::Deferred => {
@@ -181,15 +201,26 @@ async fn decide(
         pathway = ?pathway,
         action = ?action,
         confidence = deliberate_result.confidence,
+        help_seeking = help_eval.should_seek_help,
         elapsed_ms = elapsed_ms,
         "Decision made via deliberate loop"
     );
+
+    // Build reasoning with help-seeking info if triggered
+    let final_reasoning = if help_eval.should_seek_help {
+        format!(
+            "{}. Help-seeking triggered: {:?}",
+            reasoning, help_eval.triggers_fired
+        )
+    } else {
+        reasoning
+    };
 
     Ok(Json(Decision {
         experience_id,
         action,
         confidence: deliberate_result.confidence,
-        reasoning,
+        reasoning: final_reasoning,
         suggested_response: None,
         similar_experiences: deliberate_result.results,
         regions_consulted: deliberate_result.regions_consulted,
