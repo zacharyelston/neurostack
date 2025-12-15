@@ -1,0 +1,415 @@
+# Omni-Core Based Inter-Brain Communication Design
+# 
+# This document defines how neurostack brains communicate using patterns
+# derived from omni-core's federation and cryptographic protocols.
+
+prd:
+  name: neurostack-omni-comms
+  version: 1.0.0
+  scope: brain_to_brain_secure_communication
+  summary: >
+    Adapts omni-core's X25519/ChaCha20 key exchange, server federation,
+    and sync protocols for secure inter-brain communication in neurostack.
+
+foundation:
+  source: omni-core
+  patterns_adopted:
+    - X25519 key exchange for per-brain keypairs
+    - ChaCha20Poly1305 authenticated encryption
+    - Server registry for brain discovery
+    - Sync service for periodic brain list exchange
+    - YAML-based persistent storage for keys and config
+
+# =============================================================================
+# CRYPTOGRAPHIC LAYER
+# =============================================================================
+
+crypto:
+  key_exchange:
+    algorithm: X25519
+    description: >
+      Each brain generates a static keypair. When two brains establish
+      communication, they derive a shared secret via Diffie-Hellman.
+    implementation:
+      crate: x25519-dalek
+      key_size: 32 bytes (256 bits)
+      
+  encryption:
+    algorithm: ChaCha20Poly1305
+    description: >
+      All inter-brain messages are encrypted using the derived shared secret.
+      Provides authenticated encryption with associated data (AEAD).
+    implementation:
+      crate: chacha20poly1305
+      nonce_size: 12 bytes
+      tag_size: 16 bytes
+
+  brain_keypair:
+    description: >
+      Each brain has a static keypair used for all inter-brain communication.
+      Unlike omni-core's per-client keys, brains use a single identity keypair.
+    fields:
+      brain_id: "stable unique identifier (derived from public key hash)"
+      public_key: "hex-encoded 32-byte X25519 public key"
+      secret_key: "hex-encoded 32-byte X25519 secret key (stored securely)"
+      created_at: "ISO8601 timestamp"
+    storage: "data/brain_identity.yaml"
+
+  shared_secrets:
+    description: >
+      Cached shared secrets for known brains to avoid repeated DH operations.
+    storage: "data/shared_secrets.yaml (encrypted at rest)"
+    ttl: "24 hours, then re-derive"
+
+# =============================================================================
+# BRAIN REGISTRY (adapted from ServerRegistry)
+# =============================================================================
+
+brain_registry:
+  description: >
+    Maintains a list of known brains, their capabilities, and trust levels.
+    Adapted from omni-core's ServerRegistry pattern.
+    
+  storage:
+    directory: "data/brains.d/"
+    format: "YAML, one file per brain"
+    
+  brain_entry:
+    fields:
+      brain_id: "unique identifier (public key hash)"
+      name: "human-readable brain name"
+      description: "optional description"
+      public_url: "base URL for the brain's /interop endpoints"
+      public_key: "hex-encoded X25519 public key"
+      capabilities: "map[string, int] - domain -> level 0-9"
+      specialties: "list of free-text tags"
+      is_public: "whether this brain is publicly discoverable"
+      is_authenticated: "whether we have established encrypted comms"
+      discovered_at: "ISO8601 timestamp"
+      last_seen: "ISO8601 timestamp of last successful contact"
+      last_sync: "ISO8601 timestamp of last capability sync"
+      trust_level: "0-100, higher = more trusted"
+      protocol_version: "interop protocol version"
+    
+  operations:
+    - register: "Add a new brain to the registry"
+    - update: "Update brain info (capabilities, last_seen)"
+    - remove: "Remove a brain from the registry"
+    - list_public: "Get all publicly discoverable brains"
+    - list_authenticated: "Get brains we have encrypted channels with"
+    - merge_from: "Merge brain list from another brain's sync response"
+
+# =============================================================================
+# SYNC SERVICE (adapted from SyncService)
+# =============================================================================
+
+sync_service:
+  description: >
+    Background task that periodically syncs brain lists and capabilities
+    from authenticated brains. Creates a distributed discovery network.
+    
+  config:
+    interval_secs: 3600  # 1 hour default
+    max_brains_per_sync: 100
+    timeout_secs: 30
+    
+  sync_flow:
+    - step: 1
+      action: "Get list of authenticated brains"
+    - step: 2
+      action: "For each authenticated brain, POST /interop/sync"
+    - step: 3
+      action: "Receive list of public brains from peer"
+    - step: 4
+      action: "Merge new brains into local registry"
+    - step: 5
+      action: "Update last_sync timestamp"
+      
+  sync_request:
+    fields:
+      requesting_brain_id: "our brain_id"
+      requesting_brain_key: "our public_key"
+      protocol_version: "1.0"
+      
+  sync_response:
+    fields:
+      brains: "list of BrainEntry for public brains"
+      total: "count of brains returned"
+      responder_brain_id: "their brain_id"
+      responder_capabilities: "their current capabilities"
+
+# =============================================================================
+# ENCRYPTED MESSAGE PROTOCOL
+# =============================================================================
+
+encrypted_message:
+  description: >
+    All inter-brain messages are wrapped in an encrypted envelope.
+    Adapted from omni-core's EncryptedMessage pattern.
+    
+  envelope:
+    outer_fields:
+      from_brain: "sender brain_id (plaintext for routing)"
+      to_brain: "recipient brain_id (plaintext for routing)"
+      nonce: "base64-encoded 12-byte nonce"
+      ciphertext: "base64-encoded encrypted payload"
+      
+    inner_payload:
+      description: "The InteropMessage from interop.yaml, JSON-serialized then encrypted"
+      
+  encryption_flow:
+    sender:
+      - step: 1
+        action: "Serialize InteropMessage to JSON"
+      - step: 2
+        action: "Look up or derive shared secret for recipient"
+      - step: 3
+        action: "Generate random 12-byte nonce"
+      - step: 4
+        action: "Encrypt JSON with ChaCha20Poly1305"
+      - step: 5
+        action: "Base64-encode nonce and ciphertext"
+      - step: 6
+        action: "Wrap in outer envelope with plaintext routing info"
+        
+    recipient:
+      - step: 1
+        action: "Extract from_brain from outer envelope"
+      - step: 2
+        action: "Look up or derive shared secret for sender"
+      - step: 3
+        action: "Base64-decode nonce and ciphertext"
+      - step: 4
+        action: "Decrypt with ChaCha20Poly1305"
+      - step: 5
+        action: "Deserialize JSON to InteropMessage"
+      - step: 6
+        action: "Validate message (TTL, hop_limit, idempotency)"
+
+# =============================================================================
+# HANDSHAKE PROTOCOL
+# =============================================================================
+
+handshake:
+  description: >
+    Establishes encrypted communication between two brains.
+    Similar to omni-core's registration flow but for brain-to-brain.
+    
+  flow:
+    - step: 1
+      name: "init"
+      initiator: "Brain A"
+      action: "POST /interop/handshake/init"
+      payload:
+        brain_id: "A's brain_id"
+        public_key: "A's public key"
+        capabilities: "A's capability advertisement"
+        protocol_version: "1.0"
+      response:
+        challenge: "random 32-byte challenge (hex)"
+        responder_public_key: "B's public key"
+        
+    - step: 2
+      name: "complete"
+      initiator: "Brain A"
+      action: "POST /interop/handshake/complete"
+      payload:
+        brain_id: "A's brain_id"
+        challenge_response: "HMAC-SHA256(challenge, shared_secret)"
+      response:
+        success: true
+        session_id: "UUID for this authenticated session"
+        capabilities: "B's capability advertisement"
+        
+  result:
+    - "Both brains have each other's public keys"
+    - "Shared secret is derived and cached"
+    - "is_authenticated = true in both registries"
+    - "Encrypted messages can now be exchanged"
+
+# =============================================================================
+# API ENDPOINTS
+# =============================================================================
+
+api:
+  base_path: "/interop"
+  
+  endpoints:
+    # Discovery (unauthenticated)
+    - path: "/health"
+      method: GET
+      auth: none
+      purpose: "Liveness check"
+      
+    - path: "/info"
+      method: GET
+      auth: none
+      purpose: "Public brain info (id, name, public_key, capabilities)"
+      
+    - path: "/brains"
+      method: GET
+      auth: none
+      purpose: "List public brains (for discovery)"
+      
+    # Handshake
+    - path: "/handshake/init"
+      method: POST
+      auth: none
+      purpose: "Initiate key exchange"
+      
+    - path: "/handshake/complete"
+      method: POST
+      auth: challenge
+      purpose: "Complete key exchange with challenge response"
+      
+    # Authenticated (encrypted)
+    - path: "/sync"
+      method: POST
+      auth: encrypted
+      purpose: "Sync brain lists between authenticated brains"
+      
+    - path: "/message"
+      method: POST
+      auth: encrypted
+      purpose: "Send encrypted InteropMessage"
+      
+    - path: "/task"
+      method: POST
+      auth: encrypted
+      purpose: "Propose/assign task contract"
+      
+    - path: "/query"
+      method: POST
+      auth: encrypted
+      purpose: "Request knowledge or memory summary"
+      
+    - path: "/feedback"
+      method: POST
+      auth: encrypted
+      purpose: "Return outcome feedback"
+
+# =============================================================================
+# TRUST MODEL
+# =============================================================================
+
+trust:
+  levels:
+    0-20: "untrusted - only public info exchange"
+    21-50: "known - basic message exchange allowed"
+    51-80: "trusted - task delegation allowed"
+    81-100: "highly trusted - sensitive data sharing allowed"
+    
+  trust_factors:
+    - successful_handshake: "+20"
+    - successful_task_completion: "+5 per task"
+    - failed_task: "-10 per failure"
+    - time_known: "+1 per week, max +20"
+    - manual_verification: "+30"
+    - peer_vouching: "+10 per trusted peer"
+    
+  trust_decay:
+    - no_contact_30_days: "-5"
+    - no_contact_90_days: "-15"
+    - authentication_failure: "-20"
+
+# =============================================================================
+# STORAGE LAYOUT
+# =============================================================================
+
+storage:
+  directory_structure:
+    data/:
+      brain_identity.yaml: "This brain's keypair and identity"
+      shared_secrets.yaml: "Cached shared secrets (encrypted)"
+      brains.d/:
+        "{brain_id}.yaml": "One file per known brain"
+      sync_state.yaml: "Last sync timestamps and state"
+      
+  brain_identity_example:
+    brain_id: "neuro-alpha-7f3a"
+    name: "Neuro Alpha"
+    description: "Primary reasoning brain"
+    public_key: "a1b2c3d4..."
+    secret_key: "encrypted:..."
+    created_at: "2024-12-14T19:00:00Z"
+    capabilities:
+      general_reasoner: 7
+      critical_reviewer: 6
+      software_architecture_engineer: 8
+    specialties:
+      - rust
+      - distributed_systems
+      - cognitive_architecture
+
+# =============================================================================
+# IMPLEMENTATION NOTES
+# =============================================================================
+
+implementation:
+  rust_crates:
+    - x25519-dalek: "X25519 key exchange"
+    - chacha20poly1305: "AEAD encryption"
+    - rand: "Cryptographic randomness"
+    - hex: "Hex encoding for keys"
+    - base64: "Base64 encoding for messages"
+    - serde_yaml: "YAML storage"
+    - reqwest: "HTTP client for sync"
+    - tokio: "Async runtime for sync service"
+    
+  modules_to_create:
+    - cortical-shared/src/crypto.rs: "Key exchange and encryption"
+    - cortical-shared/src/brain_registry.rs: "Brain discovery and storage"
+    - cortical-shared/src/sync.rs: "Background sync service"
+    - prefrontal-cortex/src/interop_api.rs: "API endpoint handlers"
+    
+  security_considerations:
+    - "Secret keys must never be logged"
+    - "Shared secrets should be stored encrypted at rest"
+    - "Nonces must never be reused with the same key"
+    - "Challenge-response prevents replay attacks"
+    - "Trust levels gate what operations are allowed"
+
+# =============================================================================
+# INTEGRATION WITH EXISTING INTEROP
+# =============================================================================
+
+integration:
+  with_interop_yaml:
+    description: >
+      This crypto layer wraps the InteropMessage from interop.yaml.
+      The message envelope, epistemics, and task contracts remain unchanged.
+      
+  message_flow:
+    - step: 1
+      layer: "Application"
+      action: "Build InteropMessage with payload and epistemics"
+    - step: 2
+      layer: "Crypto"
+      action: "Encrypt InteropMessage using shared secret"
+    - step: 3
+      layer: "Transport"
+      action: "POST encrypted envelope to recipient /interop/message"
+    - step: 4
+      layer: "Crypto"
+      action: "Recipient decrypts envelope"
+    - step: 5
+      layer: "Application"
+      action: "Recipient processes InteropMessage"
+      
+  with_cross_brain_assistance:
+    description: >
+      Help-seeking triggers may result in encrypted messages to other brains.
+      The ask-two-others rule uses the brain registry to find suitable reviewers.
+      
+  with_domain_catalog:
+    description: >
+      Brain capabilities in the registry map to domain catalog entries.
+      Reviewer selection uses capability levels from authenticated brains.
+
+acceptance_criteria:
+  - "Two brains can complete handshake and derive shared secret"
+  - "Messages are encrypted with ChaCha20Poly1305"
+  - "Brain registry persists to YAML files"
+  - "Sync service discovers new brains from authenticated peers"
+  - "Trust levels gate operations appropriately"
+  - "Secret keys are never exposed in logs or errors"

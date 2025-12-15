@@ -6,6 +6,7 @@
 pub mod assistance;
 pub mod clients;
 pub mod config;
+pub mod crypto;
 pub mod domains;
 pub mod errors;
 pub mod interop;
@@ -15,6 +16,7 @@ pub mod policies;
 pub use assistance::*;
 pub use clients::*;
 pub use config::*;
+pub use crypto::*;
 pub use domains::*;
 pub use errors::*;
 pub use interop::*;
